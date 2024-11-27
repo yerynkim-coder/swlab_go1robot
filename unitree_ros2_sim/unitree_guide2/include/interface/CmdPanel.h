@@ -17,16 +17,15 @@
     #endif  // ROBOT_TYPE_Go1
 #endif  // COMPILE_WITH_REAL_ROBOT
 
-struct UserValue{
+struct UserValue {
     float lx;
     float ly;
     float rx;
     float ry;
     float L2;
-    UserValue(){
-        setZero();
-    }
-    void setZero(){
+
+    UserValue() { setZero(); }
+    void setZero() {
         lx = 0;
         ly = 0;
         rx = 0;
@@ -35,21 +34,25 @@ struct UserValue{
     }
 };
 
-class CmdPanel{
+class CmdPanel {
 public:
-    CmdPanel(){}
-    virtual ~CmdPanel(){}
-    UserCommand getUserCmd(){return userCmd;}
-    UserValue getUserValue(){return userValue;}
-    void setPassive(){userCmd = UserCommand::L2_B;}
-    void setZero(){userValue.setZero();}
+    CmdPanel() = default;
+    virtual ~CmdPanel() = default;
+
+    UserCommand getUserCmd() { return userCmd; }
+    UserValue getUserValue() { return userValue; }
+    void setPassive() { userCmd = UserCommand::L2_B; }
+    void setZero() { userValue.setZero(); }
+
 #ifdef COMPILE_WITH_REAL_ROBOT
-    virtual void receiveHandle(UNITREE_LEGGED_SDK::LowState *lowState){};
+    virtual void receiveHandle(UNITREE_LEGGED_SDK::LowState* /*lowState*/) {}
 #endif  // COMPILE_WITH_REAL_ROBOT
+
 protected:
-    virtual void* run(void *arg){return NULL;}
+    virtual void* run(void* [[maybe_unused]] arg) { return NULL; }
     UserCommand userCmd;
     UserValue userValue;
 };
 
 #endif  // CMDPANEL_H
+

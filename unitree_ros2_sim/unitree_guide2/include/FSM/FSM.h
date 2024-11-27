@@ -23,7 +23,7 @@
     #include "FSM/State_move_base.h"
 #endif  // COMPILE_WITH_ROS2_MB
 
-struct FSMStateList{
+struct FSMStateList {
     FSMState *invalid;
     State_Passive *passive;
     State_FixedStand *fixedStand;
@@ -40,7 +40,7 @@ struct FSMStateList{
     State_move_base *moveBase;
 #endif  // COMPILE_WITH_ROS2_MB
 
-    void deletePtr(){
+    void deletePtr() {
         delete invalid;
         delete passive;
         delete fixedStand;
@@ -58,7 +58,7 @@ struct FSMStateList{
     }
 };
 
-class FSM{
+class FSM {
 public:
     FSM(CtrlComponents *ctrlComp);
     ~FSM();
@@ -77,5 +77,5 @@ private:
     int count;
 };
 
-
 #endif  // FSM_H
+

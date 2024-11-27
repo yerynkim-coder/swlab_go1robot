@@ -90,6 +90,28 @@ void IOROS::initSend(){
     _servo_pub[11] = _nm.advertise<unitree_legged_msgs::MotorCmd>("/" + _robot_name + "_gazebo/RL_calf_controller/command", 1);
 }
 
+void IOROS::cmdVelCallback(const geometry_msgs::Twist &msg) {
+    double linear_velocity = msg.linear.x;  // Forward/backward speed
+    double angular_velocity = msg.angular.z;  // Turning speed
+
+    std::cout << "Received cmd_vel: linear.x = " << linear_velocity
+              << ", angular.z = " << angular_velocity << std::endl;
+
+    // Translate cmd_vel into left and right motor velocities
+    double left_velocity = linear_velocity - angular_velocity;
+    double right_velocity = linear_velocity + angular_velocity;
+
+    // Apply to motor commands
+    for (int i = 0; i < 6; ++i) {  // Left motors
+        _lowCmd.motorCmd[i].dq = left_velocity;
+    }
+    for (int i = 6; i < 12; ++i) { // Right motors
+        _lowCmd.motorCmd[i].dq = right_velocity;
+    }
+}
+
+
+
 void IOROS::initRecv(){
     _imu_sub = _nm.subscribe("/trunk_imu", 1, &IOROS::imuCallback, this);
     _servo_sub[0] = _nm.subscribe("/" + _robot_name + "_gazebo/FR_hip_controller/state", 1, &IOROS::FRhipCallback, this);
@@ -104,6 +126,13 @@ void IOROS::initRecv(){
     _servo_sub[9] = _nm.subscribe("/" + _robot_name + "_gazebo/RL_hip_controller/state", 1, &IOROS::RLhipCallback, this);
     _servo_sub[10] = _nm.subscribe("/" + _robot_name + "_gazebo/RL_thigh_controller/state", 1, &IOROS::RLthighCallback, this);
     _servo_sub[11] = _nm.subscribe("/" + _robot_name + "_gazebo/RL_calf_controller/state", 1, &IOROS::RLcalfCallback, this);
+    
+    // Add cmd_vel subscription
+    _cmd_vel_sub = _nm.subscribe("/cmd_vel", 10, &IOROS::cmdVelCallback, this);
+
+    // Log for confirmation
+    std::cout << "Subscribed to /cmd_vel" << std::endl;
+    
 }
 
 void IOROS::imuCallback(const sensor_msgs::Imu & msg)
@@ -314,25 +343,41 @@ void IOROS::sendRecv(const LowlevelCmd *cmd, LowlevelState *state){
     state->userValue = cmdPanel->getUserValue();
 }
 
-void IOROS::sendCmd(const LowlevelCmd *lowCmd){
-    
-    for(int i(0); i < 12; ++i){
+void IOROS::sendCmd(const LowlevelCmd *lowCmd) {
+    static std::vector<double> prev_dq(12, 0.0);  // Store previous dq for smoothing
+    double velocity_scale = 0.5;  // Scale factor for velocities
+    double alpha = 0.8;  // Smoothing factor for filtering (0.0 - no change, 1.0 - full change)
+
+    for (int i = 0; i < 12; ++i) {
         _lowCmd.motor_cmd[i].mode = lowCmd->motorCmd[i].mode;
         _lowCmd.motor_cmd[i].q = lowCmd->motorCmd[i].q;
-        _lowCmd.motor_cmd[i].dq = lowCmd->motorCmd[i].dq;
+
+        // Apply scaling and smoothing to dq
+        double scaled_dq = lowCmd->motorCmd[i].dq * velocity_scale;
+        _lowCmd.motor_cmd[i].dq = alpha * prev_dq[i] + (1.0 - alpha) * scaled_dq;
+
         _lowCmd.motor_cmd[i].tau = lowCmd->motorCmd[i].tau;
         _lowCmd.motor_cmd[i].kd = lowCmd->motorCmd[i].Kd;
         _lowCmd.motor_cmd[i].kp = lowCmd->motorCmd[i].Kp;
 
+        // Save current dq for the next iteration
+        prev_dq[i] = _lowCmd.motor_cmd[i].dq;
+
+        // Log the motor commands
+        std::cout << "Motor " << i 
+                  << ": mode = " << _lowCmd.motor_cmd[i].mode
+                  << ", q = " << _lowCmd.motor_cmd[i].q
+                  << ", dq = " << _lowCmd.motor_cmd[i].dq
+                  << ", tau = " << _lowCmd.motor_cmd[i].tau
+                  << ", kd = " << _lowCmd.motor_cmd[i].kd
+                  << ", kp = " << _lowCmd.motor_cmd[i].kp << std::endl;
     }
-    for(int m(0); m < 12; ++m){
+
+    for (int m = 0; m < 12; ++m) {
         _servo_pub[m]->publish(_lowCmd.motor_cmd[m]);
     }
-    // _joint_cmd_pub->publish(_joint_cmd);
-    // rclcpp::spin_once();
-
-
 }
+
 
 void IOROS::recvState(LowlevelState *state){
     for(int i(0); i < 12; ++i){
